@@ -271,9 +271,7 @@ class Site:
         ex = example.parse(dict(t.sections)["Try it"], where, located=True)
         if len(ex.calls) != 1:
             raise Invalid(f"{where}: the example the knowledge base is shown by has one call")
-        reply, fields = knowledge.excerpt(ex.whole, where)
-        ex = dataclasses.replace(ex, calls=tuple(
-            dataclasses.replace(c, fields=fields, reply=reply) for c in ex.calls))
+        ex = knowledge.entry_example(ex, where)
         tag = "mame" if key == "mame" else "dos"
         caption = (f'<span class="tag {tag}">{html.escape(f.repo.label)}</span>' if tagged
                    else one(ex.where))

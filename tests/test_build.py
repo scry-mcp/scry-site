@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -1249,18 +1250,24 @@ def test_the_knowledge_base_is_a_page_and_a_section_called_what_it_is(
         assert "Names for numbers" not in text and "Numbers come with" not in text
 
 
-def test_the_counts_are_the_bases_own_and_each_held_back_count_stands_beside_its_served_one(
+def test_the_counts_are_the_bases_own_and_nothing_of_what_it_holds_back_is_said(
         repos: Path, tmp_path: Path) -> None:
     for rel, body in base_files("dosbox-x", kinds=(("call", "rbil61"),) * 7,
                                 held_back=11).items():
         track(repos / "scry-dosbox-x", rel, body)
     build.build(repos, tmp_path / "site")
-    home = (tmp_path / "site/index.html").read_text()
-    page = (tmp_path / "site/knowledge/index.html").read_text()
+    site = tmp_path / "site"
+    home = (site / "index.html").read_text()
+    pages = home + (site / "knowledge/index.html").read_text() + (
+        site / "reference/index.html").read_text()
     assert "<b>7</b>" in home and "<b>3</b>" in home
-    assert "11 more are written and held back until checked" in home + page
-    assert "2 more are written and held back until checked" in home + page
     assert home.index("<b>7</b>") < home.index("<b>3</b>")
+    for words in ("held back", "held_back", "held-back", "until checked", "not complete",
+                  "second reader"):
+        assert words not in pages, words
+    seen = html.unescape(re.sub(r"<[^>]+>", " ", re.sub(
+        r"<(style|script)\b.*?</\1>", "", pages, flags=re.S)))
+    assert not re.search(r"\b11\b", seen)
 
 
 def test_the_home_lists_the_server_of_its_example_first(repos: Path, tmp_path: Path) -> None:
@@ -1277,11 +1284,43 @@ def test_the_example_shows_the_entry_and_not_the_bookkeeping(repos: Path,
     home = built(repos, tmp_path, "index.html")
     section = home[home.index('<section id="knowledge">'):home.index('<section id="emulators">')]
     shown = section.split("<details")[0]
-    assert "4 of 6 fields" in shown
+    assert "2 of 4 fields" in shown
     assert "Ends the program with return code AL." in shown
     assert "as the source comment says real MS-DOS" not in shown and "…" in shown
     assert "entries_total" not in shown
     assert "entries_total" in section
+    words = html.unescape(re.sub(r"<[^>]+>", "", section))
+    assert "held_back" not in words and '"served"' not in words and "served" not in words.split()
+
+
+@pytest.mark.parametrize("reads", [
+    "One entry matches. served and held_back count what the base holds.",
+    "One entry matches. `held_back` counts what the base holds.",
+])
+def test_a_reading_sentence_that_names_the_counts_is_left_out_with_or_without_quotes(
+        repos: Path, tmp_path: Path, reads: str) -> None:
+    f = repos / "scry-mame/docs/reference/names.md"
+    replace(f, "One entry matches, so `entries` answers it whole. "
+            "`served` and `held_back` count what the base serves and holds back.", reads)
+    page = built(repos, tmp_path, "knowledge/index.html")
+    assert "One entry matches." in page and "held_back" not in page
+
+
+def test_an_example_whose_only_reading_sentence_counts_what_the_base_holds_stops_the_build(
+        repos: Path, tmp_path: Path) -> None:
+    f = repos / "scry-mame/docs/reference/names.md"
+    replace(f, "One entry matches, so `entries` answers it whole. "
+            "`served` and `held_back` count what the base serves and holds back.",
+            "`served` and `held_back` count what the base holds.")
+    with pytest.raises(Invalid, match=r"names.md, knowledge_find: .*reading sentence"):
+        build.build(repos, tmp_path / "site")
+
+
+def test_the_page_says_how_its_entries_are_checked_and_what_a_number_without_one_stays(
+        repos: Path, tmp_path: Path) -> None:
+    page = built(repos, tmp_path, "knowledge/index.html")
+    assert "checked against the source it cites" in page
+    assert "a number the base has no entry for stays a number" in page
 
 
 @pytest.mark.parametrize("whole", [

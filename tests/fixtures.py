@@ -280,7 +280,8 @@ The scan holds every byte.
 def names_family() -> str:
     return (family("Names", "disassemble", "knowledge_find")
             .replace(entry("knowledge_find"), entry("knowledge_find", whole=FOUND,
-                                                        reads="One entry matches, so `entries` answers it whole.")))
+                                                        reads="One entry matches, so `entries` answers it whole. "
+                                                              "`served` and `held_back` count what the base serves and holds back.")))
 
 
 SCHEMES = '''from dataclasses import dataclass

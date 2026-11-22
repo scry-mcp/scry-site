@@ -89,7 +89,7 @@ It lists every one of these:
 - `scry_site/motion.py` reads a demo's `loop.webp`: its size, which sets the screen frame it
   plays in, and its frame times, which light each moment while it plays.
 - `scry_site/home.py` and `scry_site/demos.py` fill the home and each demo's page.
-- `scry_site/knowledge.py` asks each checkout's base what it serves and holds back, and draws
+- `scry_site/knowledge.py` asks each checkout's base what it serves, and draws
   the home's knowledge base section, the page of its own and the reference index's sentence.
   The counts are never typed. The loader runs in a process of its own with the checkouts'
   `src` folders alone on its path, so the base must need only the standard library.
