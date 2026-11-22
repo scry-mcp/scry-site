@@ -102,15 +102,33 @@ REFERENCE = """# scry-{key}: reference
 <!-- scry-reference:begin index -->
 - [Session](docs/reference/session.md): Starting and ending a session. [`start`](docs/reference/session.md#start)
 - [Breakpoints](docs/reference/breakpoints.md): Breakpoints and watches. [`watch_add`](docs/reference/breakpoints.md#watch_add), [`scan`](docs/reference/breakpoints.md#scan)
+- [Names](docs/reference/names.md): Names and what they mean. [`disassemble`](docs/reference/names.md#disassemble), [`knowledge_find`](docs/reference/names.md#knowledge_find)
 <!-- scry-reference:end index -->
 
 ## The session
 
 The [README](README.md) and the [licence](LICENSE).
+
+## Knowledge base
+
+A reply names a number from the base. See [the tools](docs/reference/names.md).
 """
 
 
-def entry(name: str, *, related: str = "", modes: bool = False, second: bool = False) -> str:
+WHOLE = '{"summary": "{name} score: armed"}'
+#: A `knowledge_find` reply that answers with one entry, as the whole reply of its example.
+BEHAVIOUR = ("The emulator ends the current program with the return code and hands control back "
+             "to the parent, as the source comment says real MS-DOS does.")
+FOUND = ('{\n  "summary": "kind call key 0x21/0x4C: exit",\n  "status": "ok",\n'
+         '  "entries_total": 1,\n'
+         '  "entries": [{"id": "a:call:1", "kind": "call", "key": "0x21/0x4C", "name": "exit",\n'
+         '               "description": "Ends the program with return code AL.",\n'
+         f'               "behaviour": "{BEHAVIOUR}"}}],\n'
+         '  "served": 3,\n  "held_back": 2\n}')
+
+
+def entry(name: str, *, related: str = "", modes: bool = False, second: bool = False,
+          whole: str = "", reads: str = "") -> str:
     then = ("Then let it run:\n\nCall:\n\n```text\nresume(seconds=60)\n```\n\n"
             "Reply, 1 of 9 fields:\n\n```json\n{\"verdict\": \"OTHER_STOP\"}\n```\n\n"
             if second else "")
@@ -149,12 +167,12 @@ Reply, 2 of 5 fields:
 }}
 ```
 
-{then}`armed` means it is set. See [the states](#what-each-state-means).
+{then}{reads or "`armed` means it is set. See [the states](#what-each-state-means)."}
 
 <details><summary>The reply, whole</summary>
 
 ```json
-{{"summary": "{name} score: armed"}}
+{whole or WHOLE.replace("{name}", name)}
 ```
 
 </details>
@@ -259,8 +277,88 @@ The scan holds every byte.
 """
 
 
+def names_family() -> str:
+    return (family("Names", "disassemble", "knowledge_find")
+            .replace(entry("knowledge_find"), entry("knowledge_find", whole=FOUND,
+                                                        reads="One entry matches, so `entries` answers it whole.")))
+
+
+SCHEMES = '''from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Scheme:
+    opens_at: str
+
+
+SCHEMES = {"rbil61": Scheme("https://example.org/list"),
+           "dosbox-x": Scheme("https://example.org/dosbox/{pin}/{path}"),
+           "mame": Scheme("https://example.org/mame/{pin}/{path}"),
+           "datasheet": Scheme("")}
+'''
+
+
+def core_files() -> dict[str, str | bytes]:
+    """The part of scry-core a base is read through: its sources and the pins of the emulators."""
+    return {
+        "README.md": f"# scry-core\n\nShared.\n\n## Credits\n\n{CREDITS}\n",
+        "docs/file-names.md": "# File names\n\nOne rule. See [the README](../README.md).\n",
+        "src/scry_core/__init__.py": "",
+        "src/scry_core/knowledge/__init__.py": "",
+        "src/scry_core/knowledge/shared.py": 'PINS = {"mame": "mame0289"}\n',
+        "src/scry_core/knowledge/sources.py": SCHEMES}
+
+
+def base_source(function: str, kinds: tuple[tuple[str, str], ...], held_back: int,
+                faults: int) -> str:
+    """A server's base: `kinds` are the `(kind, source scheme)` of each entry it serves."""
+    return f'''from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Source:
+    ref: str
+
+
+@dataclass(frozen=True)
+class Entry:
+    kind: str
+    sources: tuple[Source, ...]
+
+
+class Base:
+    held_back = {held_back}
+
+    def entries(self):
+        return [Entry(k, (Source(s + ":x"),)) for k, s in {kinds!r}]
+
+    def __len__(self):
+        return len(self.entries())
+
+    def faults(self):
+        return ["a fault"] * {faults}
+
+
+def {function}():
+    return Base()
+'''
+
+
+def base_files(key: str, *, kinds: tuple[tuple[str, str], ...] = (
+        ("call", "rbil61"), ("call", "dosbox-x"), ("error", "rbil61")), held_back: int = 2,
+        faults: int = 0) -> dict[str, str | bytes]:
+    """The package of server `key`, holding the function the site loads its base through."""
+    if key == "dosbox-x":
+        return {"src/scry_dosbox_x/__init__.py": "",
+                "src/scry_dosbox_x/knowledge.py": base_source("base", kinds, held_back, faults)}
+    return {"src/scry_mame/__init__.py": "", "src/scry_mame/knowledge/__init__.py": "",
+            "src/scry_mame/knowledge/support.py": base_source("load", kinds, held_back, faults)}
+
+
 def server(key: str, label: str, demo: str) -> dict[str, str | bytes]:
     return {
+        **base_files(key),
+        "docs/reference/names.md": names_family(),
         "README.md": server_readme(key, label, demo),
         "REFERENCE.md": REFERENCE.format(key=key),
         "LICENSE": "MIT\n",
@@ -300,7 +398,5 @@ def track(repo: Path, rel: str, body: str | bytes) -> None:
 def make(base: Path) -> Path:
     git_repo(base / "scry-mame", server("mame", "MAME", "gridlee"))
     git_repo(base / "scry-dosbox-x", server("dosbox-x", "DOSBox-X", "monkey"))
-    git_repo(base / "scry-core", {
-        "README.md": f"# scry-core\n\nShared.\n\n## Credits\n\n{CREDITS}\n",
-        "docs/file-names.md": "# File names\n\nOne rule. See [the README](../README.md).\n"})
+    git_repo(base / "scry-core", core_files())
     return base

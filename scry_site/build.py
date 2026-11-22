@@ -20,7 +20,18 @@ from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
 
-from scry_site import analytics, demos, example, home, motion, reference, render, seo, sources
+from scry_site import (
+    analytics,
+    demos,
+    example,
+    home,
+    knowledge,
+    motion,
+    reference,
+    render,
+    seo,
+    sources,
+)
 from scry_site.check import NOT_FOUND, check
 from scry_site.sources import GROUPS, Family, Invalid, Page, Repo, collect, read, repos
 
@@ -68,7 +79,8 @@ def short(text: str) -> str:
 
 
 def llms_txt(rs: list[Repo], pages: list[Page]) -> str:
-    """The pages that have a markdown twin, by repository and group, as llmstxt.org lays out."""
+    """The pages that have a markdown twin, by repository and group, then the knowledge base's page,
+    which is built whole and has none, as llmstxt.org lays out."""
     lines = ["# SCRY", "", f"> {TAGLINE}", ""]
     order = {g: i for i, (g, _) in enumerate((*GROUPS, ("core", "")))}
     for r in rs:
@@ -76,6 +88,7 @@ def llms_txt(rs: list[Repo], pages: list[Page]) -> str:
         lines += [f"## {r.label}", ""]
         lines += [f"- [{p.title}]({twin_path(p)}): {describe(p)}" for p in ps]
         lines.append("")
+    lines += ["## Site", "", f"- [{knowledge.TITLE}]({knowledge.OUT}): {knowledge.DESCRIPTION}", ""]
     return "\n".join(lines)
 
 
@@ -218,6 +231,7 @@ class Site:
         self.credits = credits_line(self.repo("core"))
         self.measurement = analytics.measurement_id(os.environ)
         self.rendered: dict[str, str] = {}
+        self.served = [knowledge.read(self.repo("core"), r) for r in rs if r.key != "core"]
         self.clips: dict[str, motion.Clip] = {}
 
     def repo(self, key: str) -> Repo:
@@ -235,6 +249,35 @@ class Site:
         def many(md: str) -> str:
             return render.rewrite(render.markdown(md), page, self.links, virtual=virtual)
         return one, many
+
+    def linked(self, key: str, name: str) -> str:
+        """The page of tool `name` of server `key`, which the knowledge base page links."""
+        try:
+            return self.tool_pages[(key, name)]
+        except KeyError:
+            raise Invalid(f"{self.repo(key).name}: no entry of `{name}` in its reference, which "
+                          "the knowledge base page links") from None
+
+    def asked(self, key: str, out: str, *, tagged: bool = False) -> str:
+        """`knowledge_find`'s example of the server `key`, drawn for the page at `out`; headed
+        by where it can be tried, or `tagged` by its server where the page is no server's."""
+        t = next((t for ts in self.tools.values() for t in ts
+                  if t.name == "knowledge_find" and t.family.page.repo.key == key), None)
+        if t is None:
+            raise Invalid(f"{self.repo(key).name}: no entry of `knowledge_find` in its reference")
+        f = t.family.page
+        where = f"{f.repo.name}/{f.src}, knowledge_find"
+        one, many = self.writers(Page(f.repo, f.src, out, "reference", t.markdown), virtual=True)
+        ex = example.parse(dict(t.sections)["Try it"], where, located=True)
+        if len(ex.calls) != 1:
+            raise Invalid(f"{where}: the example the knowledge base is shown by has one call")
+        reply, fields = knowledge.excerpt(ex.whole, where)
+        ex = dataclasses.replace(ex, calls=tuple(
+            dataclasses.replace(c, fields=fields, reply=reply) for c in ex.calls))
+        tag = "mame" if key == "mame" else "dos"
+        caption = (f'<span class="tag {tag}">{html.escape(f.repo.label)}</span>' if tagged
+                   else one(ex.where))
+        return example.render(ex, caption=caption, inline=one, block=many)
 
     def clip(self, page: Page) -> motion.Clip:
         src = posixpath.join(posixpath.dirname(page.src), motion.LOOP)
@@ -361,9 +404,32 @@ class Site:
                         f'<ul class="toollist fams">{rows}</ul></section>')
         body = (crumbs(out, [("SCRY", "index.html"), ("Reference", out)])
                 + "<h1>Reference</h1><p class=lead>Every tool of both servers has a page, with an "
-                "example you can try.</p>" + f'<div class="refcols">{"".join(cols)}</div>')
+                "example you can try.</p>" + knowledge.line(self.served, rel(knowledge.OUT, out))
+                + f'<div class="refcols">{"".join(cols)}</div>')
         self.put(out, "Reference · SCRY", "Every tool of the two SCRY servers, by family.",
                  solo(body), nav="reference")
+
+    def names(self) -> None:
+        """The page of what the servers name and what their bases serve, under the reference."""
+        out = knowledge.OUT
+        cols = []
+        for s in self.served:
+            key = s.repo.key
+            tool = self.linked(key, "knowledge_find")
+            links = [("<code>knowledge_find</code>", rel(tool, out)),
+                     ("The rules of the knowledge base",
+                      rel(f"{key}/reference/index.html", out) + f"#{knowledge.SECTION}"),
+                     ("<code>start</code>, its <code>names</code> argument",
+                      rel(self.linked(key, "start"), out) + "#arguments"),
+                     ("<code>disassemble</code>, a note per line",
+                      rel(self.linked(key, "disassemble"), out))]
+            others = [o for o in self.served if o is not s]
+            cols.append(knowledge.column(s, others, self.asked(key, out), links))
+        body = knowledge.page(crumbs(out, [("SCRY", "index.html"),
+                                           ("Reference", "reference/index.html"),
+                                           (knowledge.TITLE, out)]), cols)
+        self.put(out, f"{knowledge.TITLE} · SCRY",
+                 knowledge.DESCRIPTION, solo(body), nav="reference")
 
     def legal(self) -> None:
         """The privacy and cookies pages the foot links to."""
@@ -415,6 +481,10 @@ class Site:
         d = dataclasses.replace(d, pages=(page,), clip=self.clip(page))
         m = sources.motion(page.markdown, f"{hero_repo.name}/{page.src}")
         fill, css = home.slots(servers, ds, self.tool_pages)
+        first = max(self.served, key=lambda s: s.served)
+        fill["knowledge"] = knowledge.home(
+            [first, *(s for s in self.served if s is not first)],
+            self.asked(first.repo.key, "index.html", tagged=True))
         body = template("landing.html", hero=home.hero(led.rows, d, led.alt, len(m.moments)),
                         **fill)
         keys = motion.keyframes(d.clip, m.ms, f"{hero_repo.name}/{d.pages[0].src}")
@@ -427,6 +497,7 @@ def render_site(rs: list[Repo], into: Path) -> dict[str, int]:
     ds = site.demo_list()
     site.render_pages(ds)
     site.reference_index()
+    site.names()
     site.home(ds)
     site.legal()
     site.not_found()

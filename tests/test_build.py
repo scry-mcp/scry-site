@@ -8,7 +8,20 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from fixtures import CREDITS, demo_readme, entry, family, git_repo, make, server, track, webp
+from fixtures import (
+    CREDITS,
+    FOUND,
+    base_files,
+    core_files,
+    demo_readme,
+    entry,
+    family,
+    git_repo,
+    make,
+    server,
+    track,
+    webp,
+)
 
 from scry_site import build, example, motion, render, seo, sources
 from scry_site.check import check
@@ -40,7 +53,7 @@ def replace(f: Path, old: str, new: str) -> None:
 def test_builds_every_page_and_lands_every_link(repos: Path, tmp_path: Path) -> None:
     report = build.build(repos, tmp_path / "site")
     site = tmp_path / "site"
-    assert report["pages"] == 25
+    assert report["pages"] == 32
     assert report["links"] > 0
     for page in ("index.html", "404.html", "reference/index.html", "mame/index.html",
                  "mame/reference/index.html", "mame/reference/breakpoints/index.html",
@@ -59,7 +72,7 @@ def test_builds_every_page_and_lands_every_link(repos: Path, tmp_path: Path) -> 
 def test_main_reports_and_exits(repos: Path, tmp_path: Path,
                                 capsys: pytest.CaptureFixture[str]) -> None:
     assert build.main([str(repos), "--out", str(tmp_path / "site")]) == 0
-    assert json.loads(capsys.readouterr().out)["pages"] == 25
+    assert json.loads(capsys.readouterr().out)["pages"] == 32
     assert build.main([str(tmp_path / "none"), "--out", str(tmp_path / "x")]) == 3
     assert capsys.readouterr().err.startswith("INVALID: no scry-mame checkout")
 
@@ -341,7 +354,8 @@ def test_a_tool_side_list_opens_on_the_servers_reference_and_ends_on_every_famil
     up = '<a class="up" href="../index.html"><span aria-hidden="true">&#9664;</span> ' \
          'MAME reference</a>'
     fams = ('<p class="grp">Families</p><ul><li><a href="../session/index.html">Session</a></li>'
-            '<li><a aria-current=true href="index.html">Breakpoints</a></li></ul>')
+            '<li><a aria-current=true href="index.html">Breakpoints</a></li>'
+            '<li><a href="../names/index.html">Names</a></li></ul>')
     for page in ("scan.html", "index.html"):
         text = (site / "mame/reference/breakpoints" / page).read_text()
         # on a phone, first inside the folded list; on a desktop, above the list's own scroll
@@ -782,8 +796,7 @@ def test_a_wav_a_page_links_is_copied_so_the_site_plays_it(tmp_path: Path) -> No
     files["demos/gridlee/music.wav"] = b"RIFF"
     git_repo(base / "scry-mame", files)
     git_repo(base / "scry-dosbox-x", server("dosbox-x", "DOSBox-X", "monkey"))
-    git_repo(base / "scry-core",
-             {"README.md": f"# scry-core\n\nShared.\n\n## Credits\n\n{CREDITS}\n"})
+    git_repo(base / "scry-core", core_files())
     build.build(base, tmp_path / "site")
     page = (tmp_path / "site/mame/demos/gridlee/index.html").read_text()
     assert 'href="music.wav"' in page
@@ -1190,3 +1203,167 @@ def test_every_page_links_the_privacy_and_cookies_pages_and_they_link_each_other
         site / "mame/demos/gridlee/index.html").read_text()
     assert 'href="privacy.html"' in (site / "cookies.html").read_text()
     assert 'href="cookies.html"' in (site / "privacy.html").read_text()
+
+
+# ---- the knowledge base ----------------------------------------------------------------------
+
+BASE_OF = {"scry-mame": "mame", "scry-dosbox-x": "dosbox-x"}
+
+
+@pytest.mark.parametrize("name", sorted(BASE_OF))
+@pytest.mark.parametrize(("change", "message"), [
+    ({"kinds": ()}, "serves 0 entries with 0 faults"),
+    ({"faults": 2}, "serves 3 entries with 2 faults"),
+])
+def test_a_base_that_serves_nothing_or_reports_faults_stops_the_build(
+        repos: Path, tmp_path: Path, name: str, change: dict[str, object],
+        message: str) -> None:
+    for rel, body in base_files(BASE_OF[name], **change).items():  # type: ignore[arg-type]
+        track(repos / name, rel, body)
+    with pytest.raises(Invalid, match=rf"{name}: its knowledge base {message}"):
+        build.build(repos, tmp_path / "site")
+    assert not (tmp_path / "site").exists()
+
+
+@pytest.mark.parametrize("name", sorted(BASE_OF))
+def test_a_base_that_does_not_load_stops_the_build(repos: Path, tmp_path: Path,
+                                                   name: str) -> None:
+    for rel in base_files(BASE_OF[name]):
+        if rel.endswith(("knowledge.py", "support.py")):
+            track(repos / name, rel, "raise RuntimeError('the base is broken')\n")
+    with pytest.raises(Invalid, match=rf"{name}: its knowledge base did not load.*broken"):
+        build.build(repos, tmp_path / "site")
+
+
+def test_the_knowledge_base_is_a_page_and_a_section_called_what_it_is(
+        repos: Path, tmp_path: Path) -> None:
+    build.build(repos, tmp_path / "site")
+    site = tmp_path / "site"
+    page = (site / "knowledge/index.html").read_text()
+    home = (site / "index.html").read_text()
+    assert "<h1>Knowledge base</h1>" in page
+    assert '<h2>The knowledge base</h2>' in home
+    assert 'href="knowledge/index.html">Knowledge base</a>' in home
+    assert '<a href="../reference/index.html" aria-current=page>Reference' in page
+    for text in (page, home, (site / "reference/index.html").read_text()):
+        assert "Names for numbers" not in text and "Numbers come with" not in text
+
+
+def test_the_counts_are_the_bases_own_and_each_held_back_count_stands_beside_its_served_one(
+        repos: Path, tmp_path: Path) -> None:
+    for rel, body in base_files("dosbox-x", kinds=(("call", "rbil61"),) * 7,
+                                held_back=11).items():
+        track(repos / "scry-dosbox-x", rel, body)
+    build.build(repos, tmp_path / "site")
+    home = (tmp_path / "site/index.html").read_text()
+    page = (tmp_path / "site/knowledge/index.html").read_text()
+    assert "<b>7</b>" in home and "<b>3</b>" in home
+    assert "11 more are written and held back until checked" in home + page
+    assert "2 more are written and held back until checked" in home + page
+    assert home.index("<b>7</b>") < home.index("<b>3</b>")
+
+
+def test_the_home_lists_the_server_of_its_example_first(repos: Path, tmp_path: Path) -> None:
+    for rel, body in base_files("mame", kinds=(("register", "datasheet"),) * 9).items():
+        track(repos / "scry-mame", rel, body)
+    home = built(repos, tmp_path, "index.html")
+    assert home.index("<b>9</b>") < home.index("<b>3</b>")
+    example = home[home.index('<section id="knowledge">'):home.index('<ul class="served">')]
+    assert 'tag mame">MAME</span>' in example
+
+
+def test_the_example_shows_the_entry_and_not_the_bookkeeping(repos: Path,
+                                                             tmp_path: Path) -> None:
+    home = built(repos, tmp_path, "index.html")
+    section = home[home.index('<section id="knowledge">'):home.index('<section id="emulators">')]
+    shown = section.split("<details")[0]
+    assert "4 of 6 fields" in shown
+    assert "Ends the program with return code AL." in shown
+    assert "as the source comment says real MS-DOS" not in shown and "…" in shown
+    assert "entries_total" not in shown
+    assert "entries_total" in section
+
+
+@pytest.mark.parametrize("whole", [
+    '{"summary": "x", "entries": []}',
+    '{"summary": "x", "entries": [{"name": "a"}, {"name": "b"}]}',
+    '{"summary": "x", "entries": [{"key": "a"}]}',
+    "not json",
+])
+def test_an_example_whose_reply_is_not_a_single_named_entry_stops_the_build(
+        repos: Path, tmp_path: Path, whole: str) -> None:
+    f = repos / "scry-mame/docs/reference/names.md"
+    replace(f, "```json\n" + FOUND + "\n```", f"```json\n{whole}\n```")
+    with pytest.raises(Invalid, match=r"scry-mame/docs/reference/names.md, knowledge_find: .*"
+                                      "single named entry"):
+        build.build(repos, tmp_path / "site")
+
+
+def test_a_server_citing_the_other_emulators_source_says_why(repos: Path,
+                                                             tmp_path: Path) -> None:
+    page = built(repos, tmp_path, "knowledge/index.html")
+    mame, dosbox = page.split('<section><h2 id="dosbox-x">')[0], page.split(
+        '<section><h2 id="dosbox-x">')[1]
+    assert "the chips both emulators share, so they cite DOSBox-X's source" in mame
+    assert "both emulators share" not in dosbox
+    assert "Ralf Brown&#x27;s Interrupt List</a>" in page and "release 61" not in page
+
+
+def test_llms_txt_lists_the_knowledge_base_page_and_the_reference_links_its_section(
+        repos: Path, tmp_path: Path) -> None:
+    build.build(repos, tmp_path / "site")
+    site = tmp_path / "site"
+    assert "- [Knowledge base](knowledge/index.html): " in (site / "llms.txt").read_text()
+    assert 'href="../mame/reference/index.html#knowledge-base"' in (
+        site / "knowledge/index.html").read_text()
+
+
+def test_a_server_without_the_tools_the_page_links_stops_the_build_with_a_message(
+        repos: Path, tmp_path: Path) -> None:
+    f = repos / "scry-mame/docs/reference/names.md"
+    f.write_text(f.read_text().replace("knowledge_find", "knowledge_seek"))
+    replace(repos / "scry-mame/REFERENCE.md", "knowledge_find", "knowledge_seek")
+    with pytest.raises(Invalid, match="scry-mame"):
+        build.build(repos, tmp_path / "site")
+
+
+def test_a_base_that_prints_or_imports_what_the_checkouts_do_not_hold_stops_the_build(
+        repos: Path, tmp_path: Path) -> None:
+    track(repos / "scry-mame", "src/scry_mame/knowledge/support.py",
+          "print('noise')\n" + base_files("mame")["src/scry_mame/knowledge/support.py"])  # type: ignore[operator]
+    with pytest.raises(Invalid, match="scry-mame: its knowledge base .*answer"):
+        build.build(repos, tmp_path / "site")
+    track(repos / "scry-mame", "src/scry_mame/knowledge/support.py",
+          "import pytest\n" + base_files("mame")["src/scry_mame/knowledge/support.py"])  # type: ignore[operator]
+    with pytest.raises(Invalid, match="scry-mame: its knowledge base did not load.*pytest"):
+        build.build(repos, tmp_path / "site")
+
+
+def test_a_base_citing_an_emulator_with_a_pin_links_that_emulators_tree_at_the_pin(
+        repos: Path, tmp_path: Path) -> None:
+    for rel, body in base_files("dosbox-x", kinds=(("call", "mame"),)).items():
+        track(repos / "scry-dosbox-x", rel, body)
+    page = built(repos, tmp_path, "knowledge/index.html")
+    assert 'href="https://github.com/mamedev/mame/tree/mame0289"' in page
+
+
+def test_an_example_of_two_calls_is_refused_where_the_knowledge_base_shows_it(
+        repos: Path, tmp_path: Path) -> None:
+    f = repos / "scry-mame/docs/reference/names.md"
+    entry_text = entry("knowledge_find", whole=FOUND, second=True, reads="One entry matches.")
+    text = f.read_text()
+    start = text.index("<!-- scry-reference:begin knowledge_find -->")
+    end = text.index("<!-- scry-reference:end knowledge_find -->")
+    f.write_text(text[:start] + entry_text.split("<!-- scry-reference:end")[0]
+                 + text[end:])
+    with pytest.raises(Invalid, match=r"names.md, knowledge_find: .*has one call"):
+        build.build(repos, tmp_path / "site")
+
+
+def test_a_link_to_a_heading_of_the_family_inside_the_example_lands_on_the_family_page(
+        repos: Path, tmp_path: Path) -> None:
+    f = repos / "scry-mame/docs/reference/names.md"
+    replace(f, "One entry matches, so `entries` answers it whole.",
+            "One entry matches. See [the states](#what-each-state-means).")
+    page = built(repos, tmp_path, "knowledge/index.html")
+    assert 'href="../mame/reference/names/index.html#what-each-state-means"' in page

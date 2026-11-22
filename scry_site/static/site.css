@@ -411,3 +411,14 @@ tbody tr:last-child td{border-bottom:1px solid var(--line)}
   .btn,.crt,.crt img{transition:none}
   .live .takes li,.live .takes li::before{animation:none!important;color:inherit}
   .live .takes li::before{color:var(--red)}}
+.known{display:grid;gap:var(--s5);grid-template-columns:minmax(0,1fr);align-items:start}
+@media (min-width:960px){.known{grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:var(--s6)}}
+.known .try{margin:0}
+.served{display:grid;gap:var(--s4);margin:0;padding:0;list-style:none}
+.served li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s4);align-items:center;background:var(--surface);border:1px solid var(--line);border-top:2px solid var(--blood);padding:var(--s4)}
+.served b{font:400 3rem/1 var(--pixel);color:var(--red);letter-spacing:.03em;min-width:3ch;text-align:right}
+.served span{display:block}
+.served small{display:block;margin-top:var(--s1);color:var(--muted);font-size:.9375rem}
+.refcols .toollist.kinds li{grid-template-columns:6rem minmax(0,1fr)}
+.toollist.kinds code{background:none;padding:0;font:600 1rem/1.5 var(--mono)}
+.doc ul.cited{max-width:none}

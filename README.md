@@ -1,8 +1,8 @@
 # scry-site
 
 This repository builds the SCRY site from the SCRY repositories' own documents. The site has a
-home, a page per tool of each server, a page per demo with its clip moving, and every other
-public document. Every word about a server is read from its repository at build time.
+home, a page per tool of each server, a page per demo with its clip moving, a page on the
+knowledge base, and every other public document. Every word about a server is read from its repository at build time.
 
 The site's own words are in its templates (`scry_site/templates/`) and in the modules that
 build each kind of page: `home.py`, `demos.py`, `reference.py` and `build.py` in `scry_site/`.
@@ -58,6 +58,14 @@ In a demo's `README.md`:
 - no single transcript block of numbered steps;
 - a demo folder named outside lowercase letters, digits, `_` and `-`.
 
+In a server's knowledge base, which the build asks by running that checkout's own loader
+(`scry_site/knowledge.py` names where each server keeps it):
+
+- a base that does not load, one that serves no entry, or one that reports faults, each named
+  by its repository;
+- a `knowledge_find` example whose whole reply is not one named entry, which is what the home
+  and the knowledge base page show it by.
+
 An example is on a tool's page or a demo's. It must be the request, its quote, one or two calls
 each with its reply, a sentence reading the reply, and the whole reply folded.
 
@@ -81,6 +89,10 @@ It lists every one of these:
 - `scry_site/motion.py` reads a demo's `loop.webp`: its size, which sets the screen frame it
   plays in, and its frame times, which light each moment while it plays.
 - `scry_site/home.py` and `scry_site/demos.py` fill the home and each demo's page.
+- `scry_site/knowledge.py` asks each checkout's base what it serves and holds back, and draws
+  the home's knowledge base section, the page of its own and the reference index's sentence.
+  The counts are never typed. The loader runs in a process of its own with the checkouts'
+  `src` folders alone on its path, so the base must need only the standard library.
 - `scry_site/render.py` renders markdown with GitHub's heading anchors, and points each
   relative link at its page here, at a copy of the file, or at the file on GitHub.
 - `scry_site/check.py` follows every link inside the built site.
@@ -94,7 +106,7 @@ It lists every one of these:
   `SCRY_GA4_ID` in its environment has no banner, no tag and no measurement; the id is the
   property's `G-` value, public by nature since it travels in the page.
 - `scry_site/build.py` puts it together. It also writes a markdown copy of every page made from
-  a whole document, `llms.txt`, which lists those copies, and `404.html`, the page served for
+  a whole document, `llms.txt`, which lists those copies and the knowledge base page, and `404.html`, the page served for
   any address that holds none.
 - `scry_site/templates/` and `scry_site/static/` are the layout and the look. The fonts are
   served with the site under the SIL Open Font License (`scry_site/static/fonts/`).
