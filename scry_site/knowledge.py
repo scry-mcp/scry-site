@@ -31,12 +31,6 @@ SECTION = "knowledge-base"
 LOADERS = {"dosbox-x": ("scry_dosbox_x.knowledge", "base"),
            "mame": ("scry_mame.knowledge.support", "load")}
 #: A `kind` of `knowledge_find`, in plain words, as the page lists it beside the value.
-KINDS = {"call": ("DOS or BIOS call", "DOS and BIOS calls"),
-         "error": ("DOS error code", "DOS error codes"), "vector": ("cpu vector", "cpu vectors"),
-         "register": ("chip register", "chip registers"),
-         "command": ("chip command", "chip commands"), "device": ("chip", "chips"),
-         "port": ("I/O port", "I/O ports"), "irq": ("interrupt line", "interrupt lines"),
-         "memory": ("memory address", "memory addresses"), "input": ("input", "inputs")}
 #: A source an entry cites, by the scheme of its reference: what the page calls it.
 SCHEMES = {"rbil61": "Ralf Brown's Interrupt List",
            "dosbox-x": "DOSBox-X's source, at the commit the entries cite",
@@ -108,38 +102,27 @@ def read(core: Repo, server: Repo) -> Served:
     return Served(server, got["served"], tuple((k, n) for k, n in got["kinds"]), tuple(sources))
 
 
-def _kinds_line(s: Served) -> str:
-    return ", ".join(f"{n} {html.escape(KINDS.get(k, ('entry', 'entries'))[n != 1])}"
-                     for k, n in s.kinds)
-
-
 def home(all_served: list[Served], example_html: str) -> str:
-    """The home's section: one real question to the base, and what each base serves, in the
-    order of the example's server first."""
-    rows = "".join(
-        f'<li><b>{s.served}</b><div><span>entries for {html.escape(s.repo.label)}: '
-        f"{_kinds_line(s)}</span></div></li>" for s in all_served)
-    return (f'<div class="known">{example_html}<ul class="served">{rows}</ul></div>'
-            f'<p class="more">Where a name comes from, and what each base holds: '
+    """The home's section: one real question to the base, and where its names come from."""
+    first = all_served[0] if all_served else None
+    label = f" for {html.escape(first.repo.label)}" if first is not None else ""
+    return (f'<div class="known">{example_html}</div>'
+            f'<p class="more">Where a name comes from, and what the base{label} holds: '
             f'<a href="{OUT}">{TITLE}</a>.</p>')
 
 
 def line(all_served: list[Served], href: str) -> str:
     """One sentence for the reference index, leading to the page."""
-    counts = " and ".join(f"{s.served} for {html.escape(s.repo.label)}" for s in all_served)
     return (f'<p class="muted">A reply names the numbers it shows from '
             f'<a href="{href}">the knowledge base</a>, whose entries are checked against their '
-            f'source. Entries: {counts}.</p>')
+            f'source.</p>')
 
 
 def column(s: Served, others: list[Served], example_html: str,
            links: list[tuple[str, str]]) -> str:
     """One server's half of the page: what its base serves, by kind and by source, one question
     asked of it, and where to read on. A source that is another emulator's is explained."""
-    kinds = "".join(
-        f"<li><code>{html.escape(k)}</code><span>{n} "
-        f"{html.escape(KINDS.get(k, ('entry', 'entries'))[n != 1])}</span></li>"
-        for k, n in s.kinds)
+    kinds = "".join(f"<li><code>{html.escape(k)}</code></li>" for k, _n in s.kinds)
     cited = "".join(
         "<li>" + (f'<a href="{html.escape(opens)}">{html.escape(SCHEMES.get(scheme, scheme))}</a>'
                   if opens else html.escape(SCHEMES.get(scheme, scheme))) + "</li>"
@@ -151,7 +134,6 @@ def column(s: Served, others: list[Served], example_html: str,
               f"cite {html.escape(' and '.join(foreign))}'s source.</p>" if foreign else "")
     return (
         f'<section><h2 id="{key}">{html.escape(s.repo.label)}</h2>'
-        f'<p class="muted">{s.served} entries.</p>'
         f'<h3 id="{key}-kinds">What it names</h3><ul class="toollist kinds">{kinds}</ul>'
         f'<h3 id="{key}-sources">Checked against</h3><ul class="cited">{cited}</ul>{shared}'
         f'<h3 id="{key}-ask">Ask it</h3>{example_html}'

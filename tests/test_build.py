@@ -1250,7 +1250,7 @@ def test_the_knowledge_base_is_a_page_and_a_section_called_what_it_is(
         assert "Names for numbers" not in text and "Numbers come with" not in text
 
 
-def test_the_counts_are_the_bases_own_and_nothing_of_what_it_holds_back_is_said(
+def test_no_page_counts_the_base_or_says_what_it_holds_back(
         repos: Path, tmp_path: Path) -> None:
     for rel, body in base_files("dosbox-x", kinds=(("call", "rbil61"),) * 7,
                                 held_back=11).items():
@@ -1260,8 +1260,8 @@ def test_the_counts_are_the_bases_own_and_nothing_of_what_it_holds_back_is_said(
     home = (site / "index.html").read_text()
     pages = home + (site / "knowledge/index.html").read_text() + (
         site / "reference/index.html").read_text()
-    assert "<b>7</b>" in home and "<b>3</b>" in home
-    assert home.index("<b>7</b>") < home.index("<b>3</b>")
+    for gone in ("<b>7</b>", "entries for", ">7 entries<", ">11<"):
+        assert gone not in pages, gone
     for words in ("held back", "held_back", "held-back", "until checked", "not complete",
                   "second reader"):
         assert words not in pages, words
@@ -1270,13 +1270,12 @@ def test_the_counts_are_the_bases_own_and_nothing_of_what_it_holds_back_is_said(
     assert not re.search(r"\b11\b", seen)
 
 
-def test_the_home_lists_the_server_of_its_example_first(repos: Path, tmp_path: Path) -> None:
+def test_the_home_names_the_server_of_its_example(repos: Path, tmp_path: Path) -> None:
     for rel, body in base_files("mame", kinds=(("register", "datasheet"),) * 9).items():
         track(repos / "scry-mame", rel, body)
     home = built(repos, tmp_path, "index.html")
-    assert home.index("<b>9</b>") < home.index("<b>3</b>")
-    example = home[home.index('<section id="knowledge">'):home.index('<ul class="served">')]
-    assert 'tag mame">MAME</span>' in example
+    example = home[home.index('<section id="knowledge">'):home.index('<section id="emulators">')]
+    assert "for MAME" in example
 
 
 def test_the_example_shows_the_entry_and_not_the_bookkeeping(repos: Path,
