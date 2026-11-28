@@ -203,6 +203,10 @@ Because the debugger compares one byte.
 ### Related tools
 
 - [`start`](session.md#start){related}
+
+### Built on
+
+It stands on the debugger's own commands.
 <!-- scry-reference:end {name} -->
 """
 

@@ -14,7 +14,7 @@ from scry_site.sources import ENTRY, Family, Invalid, Page, paragraphs
 
 #: The sections of a tool's entry, in their order; a table of modes may stand after the first.
 SECTIONS = ("Try it", "Arguments", "What comes back", "What it refuses", "Why it works this way",
-            "Related tools")
+            "Related tools", "Built on")
 _ARGUMENT = re.compile(r"- `(\w+)` \((.+?)\): (.+)", re.S)
 _FIELD = re.compile(r"- `(\w+)`: (.+)", re.S)
 

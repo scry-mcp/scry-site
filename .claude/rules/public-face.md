@@ -84,6 +84,8 @@ Language: English, every layer. This line is the declaration.
 9. **What it refuses**: a list, one refusal a line, its code in mono.
 10. **Why it works this way**: at most 3 paragraphs showing; more behind a closed `<details>`.
 11. **Related tools**: the family's other tools and the ones its example calls, as links.
+12. **Built on**: one generated sentence naming what the tool uses from the emulator, and
+    whether the emulator ships it or this project's build adds it.
 
 The page never shows a heading in code type on a tinted box, and never a value in the accent
 colour with a glow.

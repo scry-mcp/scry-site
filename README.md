@@ -47,7 +47,7 @@ In the reference:
   or is named `index`, or a page in `docs/reference/` the index does not list;
 - a tool's entry that does not open with its name, one sentence and its signature;
 - an entry whose sections are not, in order, Try it, modes (optional), Arguments, What comes
-  back, What it refuses, Why it works this way and Related tools;
+  back, What it refuses, Why it works this way, Related tools and Built on;
 - one tool with two entries.
 
 In a demo's `README.md`:
