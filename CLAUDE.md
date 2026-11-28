@@ -12,6 +12,18 @@ reference indexes. Every word the site shows about a server comes from that serv
 repository; only the home's own words, the headings and the navigation are written here.
 `README.md` says how to build it and what a build refuses.
 
+## What a later session must keep true
+
+- A family's name and its place in the navigation are read from each server's `REFERENCE.md`
+  index. Never write a family name in this repository: a rename in a server reaches the site by
+  itself, and a name typed here would survive it.
+- A knowledge reply is shown whole. The visible pane is an excerpt within the site's line limit,
+  and the whole reply sits in a closed `<details>` with nothing cut; the fields that count what
+  the base holds (`served`, `held_back`) and the reading sentence that only counts them are the
+  one thing left out (`scry_site/knowledge.py`).
+- An example is copied from a server's `docs/reference/examples.json`, never typed.
+- The reasons are in `docs/decisions.md`, one section per decision, with the date.
+
 ## Checking a change
 
 ```sh

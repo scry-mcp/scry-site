@@ -368,6 +368,18 @@ def test_a_tool_side_list_opens_on_the_servers_reference_and_ends_on_every_famil
     assert 'class="up"' not in docs and "side-top" not in docs
 
 
+def test_the_families_are_named_and_ordered_by_the_servers_own_index(
+        repos: Path, tmp_path: Path) -> None:
+    f = repos / "scry-mame/REFERENCE.md"
+    replace(f, "- [Names](docs/reference/names.md): Names and what they mean.",
+            "- [Knowledge](docs/reference/names.md): Names and what they mean.")
+    page = built(repos, tmp_path, "mame/reference/session/index.html")
+    assert side_of(page).split('<p class="grp">Families</p>')[1].startswith(
+        '<ul><li><a aria-current=true href="index.html">Session</a></li>'
+        '<li><a href="../breakpoints/index.html">Breakpoints</a></li>'
+        '<li><a href="../names/index.html">Knowledge</a></li></ul>')
+
+
 def test_a_tool_and_a_family_link_to_their_twin_on_the_other_server(
         repos: Path, tmp_path: Path) -> None:
     mame = repos / "scry-mame"
@@ -1290,6 +1302,20 @@ def test_the_example_shows_the_entry_and_not_the_bookkeeping(repos: Path,
     assert "entries_total" in section
     words = html.unescape(re.sub(r"<[^>]+>", "", section))
     assert "held_back" not in words and '"served"' not in words and "served" not in words.split()
+
+
+def test_the_whole_reply_is_a_closed_details_nothing_of_it_cut(
+        repos: Path, tmp_path: Path) -> None:
+    page = built(repos, tmp_path, "knowledge/index.html")
+    assert '<details class="whole" open' not in page
+    start = page.index('<details class="whole">')
+    whole = page[start:page.index("</details>", start)]
+    assert "…" not in whole
+    assert "as the source comment says real MS-DOS" in whole
+    assert "served" not in whole and "held_back" not in whole
+    pane = page[page.index('<div class="pane-h">Reply'):start]
+    shown = pane[pane.index("<pre><code>") + len("<pre><code>"):pane.index("</code></pre>")]
+    assert len(html.unescape(re.sub(r"<[^>]+>", "", shown)).splitlines()) <= 12
 
 
 @pytest.mark.parametrize("reads", [
