@@ -306,7 +306,9 @@ def core_files() -> dict[str, str | bytes]:
         "docs/file-names.md": "# File names\n\nOne rule. See [the README](../README.md).\n",
         "src/scry_core/__init__.py": "",
         "src/scry_core/knowledge/__init__.py": "",
-        "src/scry_core/knowledge/shared.py": 'PINS = {"mame": "mame0289"}\n',
+        "src/scry_core/knowledge/shared.py":
+            'PINS = {"dosbox-x": "2a43c7335efd91f87bf5582245abdd5b3f18d5d4", '
+            '"mame": "mame0289"}\n',
         "src/scry_core/knowledge/sources.py": SCHEMES}
 
 
@@ -315,23 +317,31 @@ def base_source(function: str, kinds: tuple[tuple[str, str], ...], held_back: in
     """A server's base: `kinds` are the `(kind, source scheme)` of each entry it serves."""
     return f'''from dataclasses import dataclass
 
-
-@dataclass(frozen=True)
-class Source:
-    ref: str
+from scry_core.knowledge.shared import PINS
+from scry_core.knowledge.sources import SCHEMES
 
 
 @dataclass(frozen=True)
 class Entry:
     kind: str
-    sources: tuple[Source, ...]
+    ref: str
 
 
 class Base:
     held_back = {held_back}
 
     def entries(self):
-        return [Entry(k, (Source(s + ":x"),)) for k, s in {kinds!r}]
+        return [Entry(k, s + ":x") for k, s in {kinds!r}]
+
+    def whole(self, e):
+        scheme, locator = e.ref.split(":", 1)
+        opens = SCHEMES[scheme].opens_at
+        url = (opens.format(pin=PINS[scheme], path=locator)
+               if "{{pin}}" in opens and scheme in PINS else opens)
+        place = {{"where": locator}}
+        if url:
+            place["url"] = url
+        return {{"sources": [place]}}
 
     def __len__(self):
         return len(self.entries())

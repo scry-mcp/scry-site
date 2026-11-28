@@ -50,8 +50,20 @@ sys.path[:0] = sys.argv[1:3]
 from scry_core.knowledge import shared
 from scry_core.knowledge.sources import SCHEMES
 base = getattr(importlib.import_module(sys.argv[3]), sys.argv[4])()
-kinds = Counter(e.kind for e in base.entries())
-cited = Counter(s.ref.split(":", 1)[0] for e in base.entries() for s in e.sources)
+
+
+def scheme(place):
+    # A cite says where it is, not which scheme: the url it opens names the tree.
+    url = place.get("url", "")
+    for name in ("dosbox-x", "mame"):
+        if url.startswith(SCHEMES[name].opens_at.split("{pin}")[0]):
+            return name
+    return "rbil61" if url == SCHEMES["rbil61"].opens_at else "datasheet"
+
+
+entries = list(base.entries())
+kinds = Counter(e.kind for e in entries)
+cited = Counter(scheme(s) for e in entries for s in base.whole(e)["sources"])
 print(json.dumps({
     "served": len(base), "faults": len(base.faults()),
     "kinds": kinds.most_common(), "cited": cited.most_common(),
